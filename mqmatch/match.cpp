@@ -1,7 +1,12 @@
 #include "match.h"
 #include <iostream>
 #include <algorithm>
+
 #include <chrono>
+#define Get_Time() std::chrono::high_resolution_clock::now()
+#define Duration(start) std::chrono::duration_cast<\
+    std::chrono::microseconds>(Get_Time() - start).count()/(float)1000
+
 
 Match::Match(two_u_map& qAdjList, std::vector<Graph::vertex_Q>& qg, std::unordered_map<int, std::multimap<int, vec>>& qg_edges, std::vector<Graph::vertex_G>& initialG, vec& stream, tri_u_map& commSub, tri_u_map& remainQ, two_u_map& remainQ_adjList, two_u_map& remainQ_initialCandU, two_umap_twovec& od_commSub, umap_twovec& od_remainQ, two_umap_twovec& od_edgeOfRemainQ, std::vector<Graph::od_node>& ot_node, two_u_map& ot_bgNode, tri_u_map& ot)
 {
@@ -22,6 +27,7 @@ Match::Match(two_u_map& qAdjList, std::vector<Graph::vertex_Q>& qg, std::unorder
 	orderTree = ot;
 	numQForAComm = Q_adjList.size() / (q.end() - 1)->comm_id;
 	numNodesForAQ = Q_adjList.begin()->second.size();
+	double time_slot1 = 0.0, time_slot2 = 0.0;
 }
 
 
@@ -50,11 +56,28 @@ void Match::updateAndMatch()
 				add_match += searchMatch(v1, v2);
 			}
 		}
+
 		changed_selfLI.clear();
 		stream_matched_edges.clear();
 	}
-	std::cout << "positive matches: " << add_match << std::endl;
-	std::cout << "negative matches: " << del_match << std::endl;
+
+	/*std::cout << "positive matches: " << add_match << std::endl;
+	std::cout << "negative matches: " << del_match << std::endl;*/
+}
+
+double Match::getTime_indexUpdate()
+{
+	return time_slot1;
+}
+
+double Match::getTime_search()
+{
+	return time_slot2;
+}
+
+int Match::getPartialMatchNum()
+{
+	return partialMatch_num;
 }
 
 bool Match::checkInputEdge(int v1, int v2)
@@ -85,8 +108,10 @@ void Match::updateIndex(int v1, int v2)
 	{
 		add_G_Nei(v1, v2);
 		add_G_Nei(v2, v1);
+	
 		addEdge_UpdateCandAndSelfLI(v1, v2);
 		addEdge_UpdateCandAndSelfLI(v2, v1);
+		
 		addEdge_UpdateNbrLI_v_and_nbrs(v1, v2);
 		addEdge_UpdateNbrLI_v_and_nbrs(v2, v1);
 		addEdge_UpdateNbrLI_vi_and_vj(v1, v2);
@@ -131,12 +156,12 @@ void Match::addEdge_UpdateCandAndSelfLI(int v, int v_nbr)
 	{
 		vec val = it1->second;
 		long int thr = val.size();
-		for (auto i = 1; i < thr; i++)   
+		for (auto i = 1; i < thr; i++)  
 		{
-			int u = val[i]; 
+			int u = val[i];  
 			int v_nbr_label = initG[v_nbr].label;
 			if (initG[v].nei.at(v_nbr_label).size() == q[u].q_neiSet.at(v_nbr_label).size())
-			{ 
+			{
 				add_CandAndSelfLI(v, val[0], u, v_nbr_label);
 			}
 		}
@@ -185,7 +210,7 @@ void Match::add_CandAndSelfLI(int v, int Qi, int u, int vNbrLabel)
 
 void Match::addEdge_UpdateNbrLI_v_and_nbrs(int v, int v_nbr)
 {
-	for (auto& i : changed_selfLI.at(v)) 
+	for (auto& i : changed_selfLI.at(v))  //Qi = i.first, u_set = i.second
 	{
 		for (auto& u : i.second)
 		{
@@ -207,7 +232,7 @@ void Match::addEdge_UpdateNbrLI_v_and_nbrs(int v, int v_nbr)
 							for (auto& matched_uNbr : vNbr_match_uNbr)
 							{
 								add_nbrLI(v, matched_uNbr, vNbr);
-								add_nbrLI(vNbr, u, v);          
+								add_nbrLI(vNbr, u, v); 
 							}
 						}
 					}
@@ -240,7 +265,7 @@ void Match::addEdge_UpdateNbrLI_vi_and_vj(int v, int v_nbr)
 						for (auto& matched_uNbr : vNbr_match_uNbr)
 						{
 							add_nbrLI(v, matched_uNbr, v_nbr);
-							add_nbrLI(v_nbr, u, v);          
+							add_nbrLI(v_nbr, u, v);     
 						}
 					}
 				}
@@ -282,6 +307,7 @@ void Match::delEdge_UpdateCandAndSelfLI(int vi, int vj)
 	u_map temp;
 	changed_selfLI.emplace(vi, temp);
 	changed_selfLI.emplace(vj, temp);
+
 	if (initG[vi].nei.find(initG[vj].label) != initG[vi].nei.end())
 	{
 		for (auto& i : stream_matched_edges)
@@ -308,6 +334,7 @@ void Match::delEdge_UpdateCandAndSelfLI(int vi, int vj)
 			}
 		}
 	}
+
 	if (initG[vj].nei.find(initG[vi].label) != initG[vj].nei.end())
 	{
 		for (auto& i : stream_matched_edges)
@@ -317,7 +344,7 @@ void Match::delEdge_UpdateCandAndSelfLI(int vi, int vj)
 				for (auto& uj : edge.second)
 				{
 					if (q[uj].q_neiSet.at(initG[vi].label).size() - initG[vj].nei.at(initG[vi].label).size() == 1)
-					{ 
+					{  
 						del_CandaAndSelfLI(vj, i.first, uj, initG[vi].label);
 					}
 				}
@@ -359,7 +386,7 @@ void Match::del_CandaAndSelfLI(int v, int Qi, int u, int vNbrLabel)
 	if (initG[v].self_LI.find(Qi) != initG[v].self_LI.end())
 	{
 		if (initG[v].self_LI.at(Qi).find(u) != initG[v].self_LI.at(Qi).end())
-		{ 
+		{  
 			store_Changed_selfLI(v, Qi, u);
 			initG[v].self_LI.at(Qi).erase(u);
 			if (initG[v].self_LI.at(Qi).size() == 0)
@@ -377,7 +404,7 @@ void Match::delEdge_update_nbrLI_v_and_nbrs(int v, int v_nbr)
 		u_set processed_uNbrs;
 		u_set delNbr_of_u;
 
-		for (auto& u : i.second) 
+		for (auto& u : i.second)  
 		{
 			for (auto& uNbr : q[u].q_neis)
 			{
@@ -404,7 +431,7 @@ void Match::delEdge_update_nbrLI_v_and_nbrs(int v, int v_nbr)
 					}
 					else
 					{
-						delNbr_of_u.emplace(uNbr);
+						delNbr_of_u.emplace(uNbr);  
 					}
 				}
 			}
@@ -421,7 +448,7 @@ void Match::delEdge_update_nbrLI_vi_and_vj(int vi, int vj)
 {
 	for (auto& i : stream_matched_edges)
 	{
-		for (auto& edge : i.second) 
+		for (auto& edge : i.second)  //key = ui
 		{
 			del_nbrLI(vj, edge.first, vi);
 
@@ -540,7 +567,7 @@ int Match::searchMatchedEdgeFromCommon(int vi, int vj)
 
 	for (auto& i : CommSub.at(initG[vi].label).at(initG[vj].label))
 	{
-		for (auto& j : i.second)   
+		for (auto& j : i.second)     //ui = i.first, uj = j
 		{
 			bool flag = checkBidirectionalEdgeOnIndex(vi, vj, i.first, j);
 			if (flag)
@@ -556,6 +583,7 @@ int Match::searchMatchedEdgeFromCommon(int vi, int vj)
 					continue;
 				}
 			}
+			
 			int bg_q_id = (q[i.first].comm_id - 1) * numQForAComm;
 			int ed_q_id = bg_q_id + numQForAComm;
 			for (int k = bg_q_id + 1; k < ed_q_id; k++)
@@ -647,6 +675,10 @@ int Match::countCommSubMatch(int ui, int uj, int index_u, int sum, u_map cand, u
 					copy_index_u += 1;
 					result += countCommSubMatch(ui, uj, copy_index_u, sum, copy_cand, copy_match, copy_usedV, dif);
 				}
+				else
+				{
+					partialMatch_num += 1;
+				}
 			}
 		}
 	}
@@ -671,8 +703,12 @@ int Match::countCommSubMatch(int ui, int uj, int index_u, int sum, u_map cand, u
 				else
 				{
 					if (copy_match.size() == numNodesForAQ)
-					{ 
+					{   
 						result += 1;
+					}
+					else
+					{
+						partialMatch_num += 1;
 					}
 				}
 			}
@@ -739,6 +775,10 @@ int Match::countJoinedMatch(int q_id, int index_u, int sum, u_map cand, unordere
 					copy_index_u += 1;
 					result += countJoinedMatch(q_id, copy_index_u, sum, copy_cand, copy_match, copy_usedV, dif);
 				}
+				else
+				{
+					partialMatch_num += 1;
+				}
 			}
 		}
 	}
@@ -750,6 +790,10 @@ int Match::countJoinedMatch(int q_id, int index_u, int sum, u_map cand, unordere
 			vec diff;
 			set_difference(cand.at(u).begin(), cand.at(u).end(), used_v.begin(), used_v.end(), back_inserter(diff));
 			result += diff.size();
+		}
+		else
+		{
+			partialMatch_num += 1;
 		}
 	}
 
@@ -832,6 +876,10 @@ int Match::countRemainQMatch(int vi, int vj, int v, int tree_node, u_map cand, u
 					{
 						result += countRemainQMatch(vi, vj, v, n, copy_cand, copy_match, copy_usedV);
 					}
+					else
+					{
+						partialMatch_num += 1;
+					}
 				}
 			}
 		}
@@ -847,13 +895,17 @@ int Match::countRemainQMatch(int vi, int vj, int v, int tree_node, u_map cand, u
 				set_difference(cand.at(u).begin(), cand.at(u).end(), used_v.begin(), used_v.end(), back_inserter(dif));
 				result += dif.size();
 			}
+			else
+			{
+				partialMatch_num += 1;
+			}
 		}
 	}
 
 	return 0;
 }
 
-u_map Match::cmpInitCand(int vi, int vj, int ui, int uj)    
+u_map Match::cmpInitCand(int vi, int vj, int ui, int uj)      //vi match ui, vj match uj
 {   
 	u_map cand;
 	cand = genEdgeCand(vi, ui, vj, uj, cand);
@@ -972,36 +1024,60 @@ u_map Match::updateCand(bool joinOperation, int v, int u, u_map cand, std::unord
 
 	if (flag)
 	{
+		
 		return cand;
 	}
 	else
-	{ 
+	{   
 		set<int> u_adjs;
 		if (joinOperation)
 		{  
 			u_adjs = RemainQ_adjList.at(q[u].q_id).at(u);
 		}
 		else
-		{ 
+		{  
 			u_adjs = q[u].q_neis;
 		}
+
 		for (auto& u : u_adjs)
-		{
+		{	
 			int i = 0;
 			if (joinOperation)
 			{
 				i = u - dif;
+				if (match.find(i) == match.end())
+				{  
+					if (match.find(u) != match.end())
+					{ 
+						continue;
+					}
+				}
+				else
+				{
+					continue;
+				}
+			}
+			else
+			{
+				i = u;
+				if (match.find(i) != match.end())
+				{
+					continue;
+				}
+			}
+			
+			if (joinOperation)
+			{
+				i = i + dif;
 			}
 			else
 			{
 				i = u;
 			}
-			if (match.find(i) != match.end())
-			{
-				continue;
-			}
+
 			if (initG[v].nbr_LI.find(i) == initG[v].nbr_LI.end())
 			{
+				print_umap(initG[v].nbr_LI);
 				cand.clear();
 				break;
 			}
@@ -1055,7 +1131,7 @@ u_map Match::cmpJoinedInitCand(int q_id, std::unordered_map<int, int> match, std
 		{
 			bool flag = false;
 			for (auto& j : i.second)
-			{ 
+			{  
 				int u = j - dif;
 				if (initG[match.at(u)].nbr_LI.find(i.first) != initG[match.at(u)].nbr_LI.end())
 				{
@@ -1102,7 +1178,8 @@ u_map Match::cmpJoinedInitCand(int q_id, std::unordered_map<int, int> match, std
 				break;
 			}
 		}
-		
 	}
+
 	return cand;
 }
+
